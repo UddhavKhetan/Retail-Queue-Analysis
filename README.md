@@ -1,4 +1,4 @@
-#Retail Queue Analysis
+# Retail Queue Analysis
 Welcome! 
 This is a machine learning project that analyses video footages of retail shop queues and calculates their operational efficiency based on several metrics.
 The metrics include: Peak Time, Average Wait, Congestion Rate, General Efficiency.
