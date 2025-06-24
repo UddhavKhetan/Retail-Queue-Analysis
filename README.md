@@ -1,4 +1,4 @@
-# Retail Queue Analysis
+# QueueSense
 <br>
 Welcome! 
 <br>
