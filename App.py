@@ -1,43 +1,35 @@
-from flask import Flask, request, render_template, send_file
+from flask import Flask, render_template, request, send_from_directory
 import os
-import cv2
-import torch
+from yolov8_script import process_video
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'static'
 
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        file = request.files['video']
-        filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-        file.save(filepath)
-        
-        output_path = os.path.join(OUTPUT_FOLDER, f'output_{file.filename}')
-        annotate_video(filepath, output_path)
-        
-        return render_template('index.html', video_path=output_path)
-    
+        uploaded_file = request.files['video']
+        if uploaded_file.filename != '':
+            input_path = os.path.join(UPLOAD_FOLDER, uploaded_file.filename)
+            uploaded_file.save(input_path)
+
+            output_video = os.path.join(OUTPUT_FOLDER, 'output.mp4')
+            output_csv = os.path.join(OUTPUT_FOLDER, 'queue_time.csv')
+
+            process_video(input_path, output_video, output_csv)
+
+            return render_template('index.html',
+                                   video_file='static/output.mp4',
+                                   csv_file='static/queue_time.csv')
     return render_template('index.html')
 
-def annotate_video(input_path, output_path):
-    cap = cv2.VideoCapture(input_path)
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, 20.0, (640, 480))
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        results = model(frame)
-        annotated_frame = results.render()[0]
-        out.write(annotated_frame)
-
-    cap.release()
-    out.release()
+@app.route('/download/<filename>')
+def download_file(filename):
+    return send_from_directory(OUTPUT_FOLDER, filename)
 
 if __name__ == '__main__':
     app.run(debug=True)
