@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>YOLO Video Annotation</title>
+</head>
+<body>
+    <h1>Upload a Video</h1>
+    <form method="POST" enctype="multipart/form-data">
+        <input type="file" name="video" accept="video/*" required>
+        <input type="submit">
+    </form>
+
+    {% if video_path %}
+        <h2>Annotated Video:</h2>
+        <video width="640" height="480" controls>
+            <source src="{{ video_path }}" type="video/mp4">
+        </video>
+    {% endif %}
+</body>
+</html>
