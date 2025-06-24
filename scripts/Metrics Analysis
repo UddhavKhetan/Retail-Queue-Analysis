@@ -1,0 +1,176 @@
+import csv
+import re
+import pandas as pd
+import statistics
+import matplotlib.pyplot as plt
+import os
+
+# === CONFIGURATION ===
+CSV_WAIT_TIME_PATH = 'static/queue_time.csv'
+CSV_PRESENCE_PATH = 'static/queue_presence.csv'
+IMG_HISTOGRAM_PATH = 'static/queue_histogram.png'
+IMG_SUMMARY_PATH = 'static/queue_summary.png'
+IMG_TIMELINE_PATH = 'static/queue_timeline.png'
+CSV_METRICS_SUMMARY_PATH = 'static/queue_metrics_summary.csv'
+FPS = 30  # set your actual FPS
+QUEUE_THRESHOLD = 30  # seconds
+
+# === FUNCTIONS ===
+
+def load_queue_times(csv_path):
+    times = []
+    with open(csv_path, 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            match = re.search(r'(\d+\.\d+)', row[0])
+            if match:
+                times.append(float(match.group(1)))
+    return times
+
+def analyze_metrics(times):
+    df = pd.DataFrame(times, columns=['wait_time'])
+    total_customers = len(df)
+
+    avg = df['wait_time'].mean()
+    med = df['wait_time'].median()
+    min_ = df['wait_time'].min()
+    max_ = df['wait_time'].max()
+    std = df['wait_time'].std()
+
+    throughput_per_min = round(total_customers / (sum(times) / 60), 2)
+    congestion_rate = round((df['wait_time'] > QUEUE_THRESHOLD).sum() / total_customers * 100, 2)
+
+    # Scaled score
+    if avg <= 20:
+        score = 10
+    elif avg <= 30:
+        score = 8
+    elif avg <= 45:
+        score = 6
+    elif avg <= 60:
+        score = 4
+    else:
+        score = 2
+
+    return {
+        'Total Customers': total_customers,
+        'Average Wait Time (s)': round(avg, 2),
+        'Median Wait Time (s)': round(med, 2),
+        'Min Wait Time (s)': round(min_, 2),
+        'Max Wait Time (s)': round(max_, 2),
+        'Std Deviation': round(std, 2),
+        'Throughput (cust/min)': throughput_per_min,
+        'Congestion Rate (%)': congestion_rate,
+        'Efficiency Score (out of 10)': score
+    }
+
+def detect_peak_time(presence_csv, fps):
+    timeline = {}
+
+    with open(presence_csv, 'r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            try:
+                enter_frame = int(row['Enter_Frame'])
+                exit_frame = int(row['Exit_Frame'])
+
+                for f in range(enter_frame, exit_frame + 1):
+                    sec = int(f / fps)
+                    timeline[sec] = timeline.get(sec, 0) + 1
+            except:
+                continue
+
+    if not timeline:
+        return {"Peak Queue Size": 0, "Peak Time (s)": None}
+
+    peak_sec = max(timeline, key=timeline.get)
+    peak_size = timeline[peak_sec]
+
+    return {
+        "Peak Queue Size": peak_size,
+        "Peak Time (s)": peak_sec
+    }
+
+def plot_histogram(times, output_path):
+    plt.figure(figsize=(8, 5))
+    plt.hist(times, bins=10, edgecolor='black', color='skyblue')
+    plt.title("Distribution of Queue Wait Times")
+    plt.xlabel("Wait Time (seconds)")
+    plt.ylabel("Number of People")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
+def plot_summary_bar(metrics, output_path):
+    labels = list(metrics.keys())
+    values = list(metrics.values())
+
+    plt.figure(figsize=(10, 6))
+    plt.barh(labels, values, color='mediumseagreen')
+    plt.title("Retail Queue Performance Summary")
+    plt.xlabel("Metric Value")
+    plt.grid(axis='x')
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+
+def plot_queue_timeline(presence_csv, fps, output_path):
+    timeline = {}
+
+    with open(presence_csv, 'r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            try:
+                start = int(row['Enter_Frame'])
+                end = int(row['Exit_Frame'])
+                for f in range(start, end + 1):
+                    sec = int(f / fps)
+                    timeline[sec] = timeline.get(sec, 0) + 1
+            except:
+                continue
+
+    if timeline:
+        series = pd.Series(timeline).sort_index()
+        series.plot(figsize=(10, 4), title='Queue Size Over Time', xlabel='Time (s)', ylabel='People in Queue')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(output_path)
+        plt.close()
+
+def save_metrics_report(metrics, output_path):
+    df = pd.DataFrame(metrics.items(), columns=['Metric', 'Value'])
+    df.to_csv(output_path, index=False)
+
+# === MAIN ===
+
+if __name__ == "__main__":
+    if not os.path.exists(CSV_WAIT_TIME_PATH):
+        print("❌ Wait time CSV not found.")
+        exit()
+
+    times = load_queue_times(CSV_WAIT_TIME_PATH)
+    if not times:
+        print("❌ No valid wait time entries found.")
+        exit()
+
+    metrics = analyze_metrics(times)
+
+    # Add peak metrics if presence CSV exists
+    if os.path.exists(CSV_PRESENCE_PATH):
+        peak_metrics = detect_peak_time(CSV_PRESENCE_PATH, FPS)
+        metrics.update(peak_metrics)
+        plot_queue_timeline(CSV_PRESENCE_PATH, FPS, IMG_TIMELINE_PATH)
+    else:
+        print("⚠️ queue_presence.csv not found, skipping peak time analysis.")
+
+    # Output results
+    for key, value in metrics.items():
+        print(f"{key}: {value}")
+
+    # Save and visualize
+    plot_histogram(times, IMG_HISTOGRAM_PATH)
+    plot_summary_bar(metrics, IMG_SUMMARY_PATH)
+    save_metrics_report(metrics, CSV_METRICS_SUMMARY_PATH)
+
+    print("\n✅ Full analysis complete. Reports and charts saved in the static/ folder.")
