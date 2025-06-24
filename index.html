@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>YOLO Video Annotation</title>
+    <title>YOLOv8 Queue Tracker</title>
 </head>
 <body>
-    <h1>Upload a Video</h1>
+    <h2>Upload a video to analyze:</h2>
     <form method="POST" enctype="multipart/form-data">
-        <input type="file" name="video" accept="video/*" required>
-        <input type="submit">
+        <input type="file" name="video" required>
+        <input type="submit" value="Upload and Analyze">
     </form>
 
-    {% if video_path %}
-        <h2>Annotated Video:</h2>
+    {% if video_file %}
+        <h3>Annotated Video:</h3>
         <video width="640" height="480" controls>
-            <source src="{{ video_path }}" type="video/mp4">
+            <source src="{{ video_file }}" type="video/mp4">
         </video>
+        <p><a href="{{ csv_file }}" download>Download CSV Report</a></p>
     {% endif %}
 </body>
 </html>
